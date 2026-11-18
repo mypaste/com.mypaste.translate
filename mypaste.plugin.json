@@ -1,0 +1,68 @@
+{
+  "manifestVersion": 3,
+  "kind": "ui",
+  "id": "com.mypaste.translate",
+  "name": "翻译对照",
+  "version": "1.0.0",
+  "description": "把一条外文条目排成对照阅读：每段原文下方给出译文，保留段落与换行；点任意单词弹出释义卡片，含音标、词性与常用义。翻译服务可在页面顶部切换：Google 翻译（translate.googleapis.com）支持的语言最多，Bilibili Index-Translate（index-translate.bilibili.com）中英日互译并可选 Index-Nailong 9B / 2B 模型。原文只按段发往所选服务，结果只留在本页，不保存、不改写原条目。",
+  "capabilities": [
+    "entity.read",
+    "network.outbound",
+    "storage.plugin"
+  ],
+  "runtime": {
+    "protocolVersion": 2,
+    "mode": "command",
+    "entrypoint": "translate",
+    "networkHosts": [
+      "translate.googleapis.com",
+      "index-translate.bilibili.com"
+    ]
+  },
+  "surface": {
+    "entry": "preview.html",
+    "forms": [
+      "text"
+    ],
+    "role": "open",
+    "chrome": "page"
+  },
+  "commands": [
+    {
+      "id": "translate.paragraph",
+      "title": "翻译段落",
+      "description": "把一段原文发往所选的翻译服务，返回译文、源语言与目标语言。",
+      "forms": [
+        "text"
+      ],
+      "capabilities": [
+        "entity.read",
+        "network.outbound"
+      ]
+    },
+    {
+      "id": "translate.word",
+      "title": "查询单词",
+      "description": "查询一个单词或词组的常用义、音标与词性，返回结构化释义。",
+      "forms": [
+        "text"
+      ],
+      "capabilities": [
+        "entity.read",
+        "network.outbound"
+      ]
+    },
+    {
+      "id": "translate.settings",
+      "title": "阅读偏好",
+      "description": "读写本扩展的阅读偏好（翻译服务、目标语言与模型），保存在扩展私有目录。",
+      "forms": [
+        "text"
+      ],
+      "capabilities": [
+        "entity.read",
+        "storage.plugin"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>翻译对照</title>
+<style>
+  :root {
+    color-scheme: light;
+    /*
+     * The host's resolved tokens arrive as --mp-* (D-1043); every value below
+     * prefers them and keeps this document's own palette as the fallback. The
+     * host owns the theme, so there is no second copy.
+     */
+    --bg: var(--mp-surface-solid, #f6f2ea);
+    --surface: var(--mp-surface-raised, #fbf8f2);
+    --ink: var(--mp-ink, #241f19);
+    --muted: var(--mp-ink-soft, #776b5c);
+    --line: var(--mp-line, rgba(60, 45, 25, 0.16));
+    --accent: var(--mp-accent, #9a5427);
+    --accent-ink: var(--mp-accent-ink, #fff8ef);
+    --danger: var(--mp-danger, #b4553f);
+    --focus: color-mix(in srgb, var(--mp-accent, #9a5427) 45%, transparent);
+    --hover: color-mix(in srgb, var(--mp-accent, #9a5427) 13%, transparent);
+    --font-body: var(--mp-font-body, -apple-system, "PingFang SC", "Segoe UI", sans-serif);
+    --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  }
+  :root[data-scheme="dark"] {
+    color-scheme: dark;
+    --bg: var(--mp-surface-solid, #171412);
+    --surface: var(--mp-surface-raised, #201c18);
+    --ink: var(--mp-ink, #f0e6d9);
+    --muted: var(--mp-ink-soft, #9a8c7b);
+    --line: var(--mp-line, rgba(255, 236, 214, 0.14));
+    --accent: var(--mp-accent, #e2955f);
+    --accent-ink: var(--mp-accent-ink, #241a12);
+    --danger: var(--mp-danger, #e89a83);
+    --focus: color-mix(in srgb, var(--mp-accent, #e2955f) 55%, transparent);
+    --hover: color-mix(in srgb, var(--mp-accent, #e2955f) 18%, transparent);
+  }
+  /*
+   * Corner system (host D-1099): one ladder owns every box on this page.
+   * --radius-xs for marks inside controls, --radius-sm for controls,
+   * --radius-md for cards and popovers, --radius-pill for markers.
+   */
+  :root {
+    --radius-xs: 4px;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-pill: 999px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+  button, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: default; opacity: 0.5; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .shell {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    height: 100%;
+  }
+
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+    padding: 8px 16px 8px 12px;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg);
+  }
+  .icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--muted);
+  }
+  .icon:hover { background: var(--hover); color: var(--ink); }
+  .icon svg { width: 16px; height: 16px; }
+  .heading { min-width: 0; flex: 1; }
+  .kicker {
+    display: block;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    color: var(--muted);
+  }
+  .heading h1 {
+    margin: 2px 0 0;
+    overflow: hidden;
+    font-size: 14.5px;
+    font-weight: 600;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .actions { display: flex; align-items: center; gap: 10px; flex: none; }
+  .target {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .target[hidden] { display: none; }
+  #provider-select { max-width: 168px; }
+  .target select {
+    height: 30px;
+    padding: 0 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 12px;
+  }
+  .primary {
+    height: 30px;
+    padding: 0 14px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .primary:hover { filter: brightness(1.05); }
+  .primary.is-running {
+    background: transparent;
+    border-color: var(--line);
+    color: var(--ink);
+  }
+
+  .meta {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 22px 0;
+    min-height: 30px;
+  }
+  .hint, .progress {
+    margin: 0;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--muted);
+  }
+  .progress { flex: none; font-variant-numeric: tabular-nums; }
+
+  .reader {
+    overflow-y: auto;
+    padding: 16px 22px 72px;
+    scrollbar-gutter: stable;
+  }
+  .blocks {
+    max-width: 740px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+  .block { margin: 0; }
+  .source {
+    margin: 0;
+    font-size: 16.5px;
+    line-height: 1.75;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .word {
+    border-radius: var(--radius-xs);
+    cursor: pointer;
+    transition: background-color 120ms ease;
+  }
+  .word:hover { background: var(--hover); }
+  .word[data-active="true"] { background: var(--hover); }
+  .translation {
+    margin: 7px 0 0;
+    font-size: 15px;
+    line-height: 1.7;
+    color: var(--muted);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .translation.pending { font-size: 12.5px; }
+  .translation.failed { font-size: 12.5px; color: var(--danger); }
+  .retry {
+    margin-left: 4px;
+    padding: 0;
+    border: 0;
+    border-bottom: 1px solid currentColor;
+    background: none;
+    color: var(--accent);
+    font: inherit;
+  }
+  .empty {
+    max-width: 420px;
+    margin: 12vh auto 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.7;
+    text-align: center;
+  }
+  .empty strong { display: block; margin-bottom: 6px; color: var(--ink); font-size: 14px; }
+
+  .card {
+    position: fixed;
+    z-index: 20;
+    width: 304px;
+    max-height: 58vh;
+    overflow-y: auto;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    box-shadow: 0 16px 40px rgba(20, 14, 8, 0.22);
+  }
+  .card-head { display: flex; align-items: flex-start; gap: 10px; }
+  .card-title { min-width: 0; flex: 1; }
+  .card-title h2 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 650;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+  .phonetic {
+    margin: 3px 0 0;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+  }
+  .card-main {
+    margin: 10px 0 0;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .card-main.pending { color: var(--muted); font-size: 12.5px; }
+  .card-main.failed { color: var(--danger); font-size: 12.5px; }
+  .card-entries { display: flex; flex-direction: column; gap: 10px; }
+  .sense-group { margin-top: 10px; }
+  .part {
+    display: block;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+  .terms { display: block; margin-top: 3px; font-size: 13px; line-height: 1.55; }
+  .senses { margin: 4px 0 0; padding: 0; list-style: none; }
+  .senses li {
+    font-size: 11.5px;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+  .senses .reverse { color: var(--muted); opacity: 0.82; }
+  .card-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+  }
+  .card-source { font-size: 11px; color: var(--muted); }
+  .ghost {
+    height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--ink);
+    font-size: 11.5px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .ghost:hover { background: var(--hover); }
+
+  @media (max-width: 560px) {
+    .bar { flex-wrap: wrap; }
+    .actions { width: 100%; justify-content: flex-end; }
+    .meta { flex-direction: column; gap: 2px; }
+  }
+</style>
+</head>
+<body>
+  <div class="shell">
+    <header class="bar">
+      <button id="doc-close" class="icon" type="button" aria-label="关闭">
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor"
+                stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <div class="heading">
+        <span class="kicker">翻译对照</span>
+        <h1 id="doc-title">正在读取条目…</h1>
+      </div>
+      <div class="actions">
+        <label class="target" id="provider-field" hidden>
+          <span>服务</span>
+          <select id="provider-select" aria-label="翻译服务"></select>
+        </label>
+        <label class="target" id="model-field" hidden>
+          <span>模型</span>
+          <select id="model-select" aria-label="翻译模型"></select>
+        </label>
+        <label class="target">
+          <span>译为</span>
+          <select id="target-select" aria-label="目标语言"></select>
+        </label>
+        <button id="translate-button" class="primary" type="button">翻译</button>
+      </div>
+    </header>
+    <div class="meta">
+      <p id="source-hint" class="hint">原文会分段发往所选的翻译服务，结果只留在本页。</p>
+      <p id="progress" class="progress" role="status" aria-live="polite"></p>
+    </div>
+    <main id="reader" class="reader" tabindex="0">
+      <div id="empty" class="empty" hidden></div>
+      <div id="blocks" class="blocks"></div>
+    </main>
+  </div>
+  <aside id="word-card" class="card" role="dialog" aria-label="单词释义" hidden>
+    <header class="card-head">
+      <div class="card-title">
+        <h2 id="card-term"></h2>
+        <p id="card-phonetic" class="phonetic"></p>
+      </div>
+      <button id="card-close" class="icon" type="button" aria-label="关闭释义卡片">
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor"
+                stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </header>
+    <p id="card-main" class="card-main"></p>
+    <div id="card-entries" class="card-entries"></div>
+    <footer class="card-foot">
+      <span id="card-source" class="card-source"></span>
+      <button id="card-copy" class="ghost" type="button">复制释义</button>
+    </footer>
+  </aside>
+<script><!--bundle--></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "com.mypaste.translate",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "python3 -m unittest discover -s tests -v",
+    "check": "python3 -m unittest discover -s tests -v && tsc -p tsconfig.json",
+    "package": "python3 scripts/package.py"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "typescript": "5.9.3"
+  }
+}
