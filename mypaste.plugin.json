@@ -3,8 +3,8 @@
   "kind": "ui",
   "id": "com.mypaste.translate",
   "name": "翻译对照",
-  "version": "1.1.0",
-  "description": "把一条外文条目排成对照阅读：每段原文下方给出译文，保留段落与换行；点任意单词弹出释义卡片，含音标、词性与常用义，卡片可朗读单词。翻译服务可在页面顶部切换：Google 翻译（translate.googleapis.com）支持的语言最多，MyMemory（api.mymemory.translated.net）无需密钥、每天有免费额度，Bilibili Index-Translate（index-translate.bilibili.com）中英日互译并可选 Index-Nailong 9B / 2B 模型；英文单词的音标与词性另从有道词典（dict.youdao.com）补齐。原文只按段发往所选服务，结果只留在本页，不保存、不改写原条目。",
+  "version": "1.2.0",
+  "description": "把一条外文条目排成对照阅读：每段原文下方给出译文，保留段落与换行；点单词弹出释义卡片，含音标、词性与常用义。服务在页面顶部切换：Google 翻译（translate.googleapis.com）、MyMemory（api.mymemory.translated.net）、Bilibili Index-Translate 与 DeepSeek（api.deepseek.com，密钥由宿主保管）；音标与词性另从有道词典（dict.youdao.com）补齐。原文只按段发往所选服务，结果只留在本页，不保存、不改写原条目。",
   "capabilities": [
     "entity.read",
     "network.outbound",
@@ -18,9 +18,19 @@
       "translate.googleapis.com",
       "api.mymemory.translated.net",
       "dict.youdao.com",
-      "index-translate.bilibili.com"
+      "index-translate.bilibili.com",
+      "api.deepseek.com"
     ]
   },
+  "settings": [
+    {
+      "key": "apiKey",
+      "type": "secret",
+      "title": "DeepSeek API 密钥",
+      "description": "由宿主保存，只随发往 api.deepseek.com 的请求以 Authorization: Bearer 发送；扩展与页面都读不到它。",
+      "host": "api.deepseek.com"
+    }
+  ],
   "surface": {
     "entry": "preview.html",
     "forms": [

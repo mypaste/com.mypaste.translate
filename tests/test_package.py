@@ -206,6 +206,7 @@ class TranslateManifestTests(unittest.TestCase):
         self.assertEqual(
             sorted(runtime["networkHosts"]),
             [
+                "api.deepseek.com",
                 "api.mymemory.translated.net",
                 "dict.youdao.com",
                 "index-translate.bilibili.com",
@@ -213,10 +214,23 @@ class TranslateManifestTests(unittest.TestCase):
             ],
         )
         description = self.manifest["description"]
+        self.assertLessEqual(len(description), 280)
         self.assertIn("translate.googleapis.com", description)
         self.assertIn("api.mymemory.translated.net", description)
-        self.assertIn("index-translate.bilibili.com", description)
+        self.assertIn("api.deepseek.com", description)
         self.assertIn("dict.youdao.com", description)
+
+    def test_the_key_is_a_host_held_secret(self) -> None:
+        # D-1176: the manifest declares the key, the host keeps and sends it.
+        settings = self.manifest["settings"]
+        self.assertEqual(len(settings), 1)
+        setting = settings[0]
+        self.assertEqual(setting["type"], "secret")
+        self.assertEqual(setting["host"], "api.deepseek.com")
+        self.assertIn(setting["host"], self.manifest["runtime"]["networkHosts"])
+        self.assertIn("network.outbound", self.manifest["capabilities"])
+        self.assertNotIn("default", setting)
+        self.assertEqual(self.manifest["version"], "1.2.0")
 
     def test_capabilities_stay_inside_the_closed_list(self) -> None:
         capabilities = set(self.manifest["capabilities"])

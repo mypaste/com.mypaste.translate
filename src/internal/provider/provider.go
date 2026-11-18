@@ -84,6 +84,19 @@ var (
 			Description: "MyMemory 的免费接口，无需密钥，每天有一定的免费额度。",
 			Targets:     allTargets,
 		},
+		{
+			// D-1176: the key lives in the host, not here. Declaring the model
+			// list is all this runtime knows about the account.
+			ID:          "deepseek",
+			Name:        "DeepSeek",
+			Description: "DeepSeek 的对话接口，译文更自然；需要先在宿主的扩展设置里保存 API 密钥。",
+			Targets:     allTargets,
+			Models: []ModelInfo{
+				{ID: "deepseek-chat", Name: "DeepSeek Chat"},
+				{ID: "deepseek-reasoner", Name: "DeepSeek Reasoner"},
+			},
+			DefaultModel: "deepseek-chat",
+		},
 	}
 )
 
@@ -226,6 +239,8 @@ func Translate(ctx context.Context, caller Caller, request Request) (Result, err
 		return bilibiliTranslate(ctx, caller, text, settings.Target, settings.Model)
 	case "mymemory":
 		return mymemoryTranslate(ctx, caller, text, settings.Target)
+	case "deepseek":
+		return deepseekTranslate(ctx, caller, text, settings.Target, settings.Model)
 	default:
 		return Result{}, errors.New("翻译服务无效")
 	}
@@ -258,6 +273,9 @@ func Lookup(ctx context.Context, caller Caller, request Request) (Result, error)
 		return withDictionary(ctx, caller, result, err)
 	case "mymemory":
 		result, err := mymemoryLookup(ctx, caller, word, settings.Target)
+		return withDictionary(ctx, caller, result, err)
+	case "deepseek":
+		result, err := deepseekLookup(ctx, caller, word, settings.Target, settings.Model)
 		return withDictionary(ctx, caller, result, err)
 	default:
 		return Result{}, errors.New("翻译服务无效")

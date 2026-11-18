@@ -178,7 +178,11 @@ function refreshHint(): void {
       ` · 译文来自 ${providerName()}`;
     return;
   }
-  sourceHint.textContent = "原文会分段发往所选的翻译服务，结果只留在本页 · Esc 退出";
+  // D-1176: DeepSeek's key is the host's. The page cannot read it, so it names
+  // the one place that can change it before the first refusal.
+  sourceHint.textContent = state.provider === "deepseek"
+    ? "DeepSeek 的 API 密钥由宿主保存在 设置 › 扩展 › 翻译对照 · 原文只按段发送"
+    : "原文会分段发往所选的翻译服务，结果只留在本页 · Esc 退出";
 }
 
 function refreshProgress(): void {
