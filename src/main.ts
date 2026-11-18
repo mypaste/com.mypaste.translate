@@ -3,9 +3,10 @@
  *
  * The host hands over one text entry. The page keeps its paragraph rhythm: the
  * original stays in place and each paragraph gains its translation directly
- * underneath, so the two can be read side by side. Translation is on demand:
- * one explicit click starts it, paragraphs are queued as they scroll into view,
- * and at most three requests run at once through this package's own runtime.
+ * underneath, so the two can be read side by side. Opening the page translates
+ * it: once the entry and the saved service are both in hand the first
+ * paragraphs start, and the rest queue as they scroll into view. At most three
+ * requests run at once through this package's own runtime.
  *
  * Every word of the original is clickable. A click asks the runtime for a
  * dictionary card — phonetic, part of speech, common senses — and shows it next
@@ -104,8 +105,8 @@ function one<T extends Element>(selector: string): T {
 const docTitle = one<HTMLHeadingElement>("#doc-title");
 const blocksHost = one<HTMLDivElement>("#blocks");
 const emptyState = one<HTMLDivElement>("#empty");
-const progress = one<HTMLParagraphElement>("#progress");
-const sourceHint = one<HTMLParagraphElement>("#source-hint");
+const progress = one<HTMLSpanElement>("#progress");
+const sourceHint = one<HTMLSpanElement>("#source-hint");
 const translateButton = one<HTMLButtonElement>("#translate-button");
 const providerSelect = one<HTMLSelectElement>("#provider-select");
 const providerField = one<HTMLElement>("#provider-field");
@@ -399,6 +400,19 @@ function startTranslating(): void {
   refreshControls();
 }
 
+// autoPending is armed by every item and spent once the saved service is
+// known: opening the page is the whole gesture. A stop by hand is final for
+// that item, and a new item arms it again.
+let autoPending = false;
+let settingsReady = false;
+
+function maybeAutoStart(): void {
+  if (!autoPending || !settingsReady) return;
+  autoPending = false;
+  if (state.blocks.length === 0 || state.translating) return;
+  startTranslating();
+}
+
 function stopTranslating(): void {
   state.translating = false;
   state.queue = [];
@@ -498,6 +512,7 @@ function renderItem(delivery: SurfaceDelivery): void {
   state.detectedSource = "";
   state.detectedTarget = "";
 
+  autoPending = true;
   const blocks = splitBlocks(item.text);
   if (blocks.length === 0) {
     observer.disconnect();
@@ -511,6 +526,7 @@ function renderItem(delivery: SurfaceDelivery): void {
   }
   refreshControls();
   reader.scrollTop = 0;
+  maybeAutoStart();
 }
 
 function toggleTranslation(): void {
@@ -549,10 +565,10 @@ function resetForService(): void {
   resetBlocks();
   refreshControls();
   refreshHint();
-  if (state.translating) {
-    queueAroundViewport();
-  } else if (touched) {
-    refreshProgress();
+  // The page translates itself on open, so a new service or direction keeps
+  // going instead of leaving the same text blank until another click.
+  if (state.translating || touched) {
+    startTranslating();
   }
   if (state.openTerm !== "") {
     closeCard();
@@ -595,6 +611,16 @@ function changeModel(value: string): void {
 }
 
 async function loadSettings(): Promise<void> {
+  try {
+    await readSettings();
+  } finally {
+    // Even a refused read leaves the page usable with its defaults.
+    settingsReady = true;
+    maybeAutoStart();
+  }
+}
+
+async function readSettings(): Promise<void> {
   const answer = await bridge.invoke(
     PLUGIN_ID,
     COMMANDS.settings,

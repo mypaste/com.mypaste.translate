@@ -1,8 +1,8 @@
 # 翻译对照
 
-MyPaste extension `com.mypaste.translate` (version `1.2.0`).
+MyPaste extension `com.mypaste.translate` (version `1.3.0`).
 
-把一条外文条目排成对照阅读：每段原文下方给出译文，保留段落与换行；点任意单词弹出卡片，含英文/美式音标、词性与常用义，卡片可以朗读单词（系统语音，不联网）。翻译服务在页面顶部切换：**Bilibili Index-Translate**（中英日互译，可选 Index-Nailong 9B / 2B 模型，默认）、**Google 翻译**（支持的语言最多）、**MyMemory**（无需密钥，每天有免费额度）与 **DeepSeek**（`deepseek-chat` / `deepseek-reasoner`，需要 API 密钥）。英文单词的音标与词性来自有道词典的免费接口，不论用哪个服务翻译都会补齐。DeepSeek 的密钥由宿主保管：在 MyPaste 的「设置 › 扩展 › 翻译对照」里填写或清除，扩展运行时与页面都拿不到明文，只会由宿主在发往 `api.deepseek.com` 的请求上补一个 `Authorization: Bearer` 头；未填写时该服务会直接给出可操作的提示，不会返回空译文。翻译按需开始，只把当前段落发往所选服务；原文与译文都不保存，也不改写原条目。按 `Esc` 先关卡片，再关页面。
+把一条外文条目排成对照阅读：每段原文下方给出译文，保留段落与换行；点任意单词弹出卡片，含英文/美式音标、词性与常用义，卡片可以朗读单词（系统语音，不联网）。翻译服务在页面顶部切换：**Bilibili Index-Translate**（中英日互译，可选 Index-Nailong 9B / 2B 模型，默认）、**Google 翻译**（支持的语言最多）、**MyMemory**（无需密钥，每天有免费额度）与 **DeepSeek**（`deepseek-chat` / `deepseek-reasoner`，需要 API 密钥）。英文单词的音标与词性来自有道词典的免费接口，不论用哪个服务翻译都会补齐。DeepSeek 的密钥由宿主保管：在 MyPaste 的「设置 › 扩展 › 翻译对照」里填写或清除，扩展运行时与页面都拿不到明文，只会由宿主在发往 `api.deepseek.com` 的请求上补一个 `Authorization: Bearer` 头；未填写时该服务会直接给出可操作的提示，不会返回空译文。打开页面即自动开始翻译，读到哪里译到哪里；换服务或改目标语言会直接重译，不用再点一次。只把当前段落发往所选服务；原文与译文都不保存，也不改写原条目。按 `Esc` 先关卡片，再关页面。服务、模型与目标语言收在标题右侧的一条选项里，不再占一行工具栏。
 
 This repository is the independent home of the extension; it started as commit `cd9f491` in the former `zhanghuid/mypaste-code-extensions` monorepo. The published `.mypaste-plugin` archives and marketplace index live in [`mypaste-extensions-catalog`](https://github.com/mypaste/mypaste-extensions-catalog).
 
