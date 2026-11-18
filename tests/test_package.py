@@ -213,6 +213,7 @@ class TranslateManifestTests(unittest.TestCase):
                 "translate.googleapis.com",
             ],
         )
+        self.assertEqual(runtime["configuredHosts"], ["openaiurl", "claudeurl"])
         description = self.manifest["description"]
         self.assertLessEqual(len(description), 280)
         self.assertIn("translate.googleapis.com", description)
@@ -220,17 +221,33 @@ class TranslateManifestTests(unittest.TestCase):
         self.assertIn("api.deepseek.com", description)
         self.assertIn("dict.youdao.com", description)
 
-    def test_the_key_is_a_host_held_secret(self) -> None:
-        # D-1176: the manifest declares the key, the host keeps and sends it.
-        settings = self.manifest["settings"]
-        self.assertEqual(len(settings), 1)
-        setting = settings[0]
-        self.assertEqual(setting["type"], "secret")
-        self.assertEqual(setting["host"], "api.deepseek.com")
-        self.assertIn(setting["host"], self.manifest["runtime"]["networkHosts"])
+    def test_the_keys_are_host_held_secrets(self) -> None:
+        # D-1176, D-1185: the manifest declares each key, the host keeps it and
+        # adds it to the requests that leave for the address it is bound to.
+        settings = {setting["key"]: setting for setting in self.manifest["settings"]}
+        runtime = self.manifest["runtime"]
+        deepseek = settings["apiKey"]
+        self.assertEqual(deepseek["type"], "secret")
+        self.assertEqual(deepseek["host"], "api.deepseek.com")
+        self.assertIn(deepseek["host"], runtime["networkHosts"])
+        openai = settings["openaikey"]
+        self.assertEqual(openai["type"], "secret")
+        self.assertEqual(openai["host"], "openaiurl")
+        self.assertIn(openai["host"], runtime["configuredHosts"])
+        self.assertNotIn("header", openai)
+        claude = settings["claudekey"]
+        self.assertEqual(claude["type"], "secret")
+        self.assertEqual(claude["host"], "claudeurl")
+        self.assertIn(claude["host"], runtime["configuredHosts"])
+        self.assertEqual(claude["header"], "x-api-key")
+        for setting in settings.values():
+            if setting["type"] == "secret":
+                self.assertNotIn("default", setting)
+        for key in ("openaiurl", "claudeurl"):
+            self.assertEqual(settings[key]["type"], "string")
+            self.assertIn("https", settings[key]["description"])
         self.assertIn("network.outbound", self.manifest["capabilities"])
-        self.assertNotIn("default", setting)
-        self.assertEqual(self.manifest["version"], "1.4.0")
+        self.assertEqual(self.manifest["version"], "1.5.0")
 
     def test_capabilities_stay_inside_the_closed_list(self) -> None:
         capabilities = set(self.manifest["capabilities"])

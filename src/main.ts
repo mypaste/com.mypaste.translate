@@ -173,6 +173,13 @@ function cacheKey(target: string, text: string): string {
 }
 
 function refreshHint(): void {
+  // D-1185: a compatible service the reader has not filled in yet says so
+  // before the first click, instead of failing one paragraph at a time.
+  const note = currentProvider()?.note ?? "";
+  if (note !== "") {
+    sourceHint.textContent = note;
+    return;
+  }
   if (state.detectedSource !== "") {
     const target = state.detectedTarget !== ""
       ? state.detectedTarget

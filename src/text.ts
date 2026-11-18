@@ -70,6 +70,8 @@ export interface ProviderInfo {
   targets: string[];
   models: ModelInfo[];
   defaultModel: string;
+  /** A setup sentence for a service the reader must fill in first. */
+  note: string;
 }
 
 /** The runtime's answer to translate.settings: the choice plus the choices. */
@@ -335,6 +337,7 @@ export function parseSettingsAnswer(raw: string | undefined): SettingsAnswer | n
       targets,
       models,
       defaultModel: typeof entry.defaultModel === "string" ? entry.defaultModel : "",
+      note: typeof entry.note === "string" ? entry.note : "",
     });
   }
   if (providers.length === 0) return null;

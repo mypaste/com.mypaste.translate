@@ -3,8 +3,8 @@
   "kind": "ui",
   "id": "com.mypaste.translate",
   "name": "翻译对照",
-  "version": "1.4.0",
-  "description": "把一条外文条目排成对照阅读：打开即自动翻译，每段原文下方给出译文，保留段落与换行；点单词弹出释义卡片，含音标、词性与常用义。服务在页面顶部切换：Google 翻译（translate.googleapis.com）、MyMemory（api.mymemory.translated.net）、Bilibili Index-Translate 与 DeepSeek（api.deepseek.com，密钥由宿主保管）；音标与词性另从有道词典（dict.youdao.com）补齐。原文只按段发往所选服务，结果只留在本页，不保存、不改写原条目。",
+  "version": "1.5.0",
+  "description": "把一条外文条目排成对照阅读：每段原文下方给出译文并保留段落；点单词弹出释义卡片。服务在顶部切换：Google 翻译（translate.googleapis.com）、MyMemory（api.mymemory.translated.net）、Bilibili Index-Translate、DeepSeek（api.deepseek.com）、OpenAI 兼容与 Claude 兼容（地址与模型在扩展设置里填写，密钥由宿主保管）；音标与词性从有道词典（dict.youdao.com）补齐。原文只按段发往所选服务，结果只留在本页。",
   "capabilities": [
     "entity.read",
     "network.outbound",
@@ -20,6 +20,10 @@
       "dict.youdao.com",
       "index-translate.bilibili.com",
       "api.deepseek.com"
+    ],
+    "configuredHosts": [
+      "openaiurl",
+      "claudeurl"
     ]
   },
   "settings": [
@@ -29,6 +33,53 @@
       "title": "DeepSeek API 密钥",
       "description": "由宿主保存，只随发往 api.deepseek.com 的请求以 Authorization: Bearer 发送；扩展与页面都读不到它。",
       "host": "api.deepseek.com"
+    },
+    {
+      "key": "openaiurl",
+      "type": "string",
+      "title": "OpenAI 兼容服务地址",
+      "description": "只填 https 主机名，例如 https://api.openai.com；扩展自己拼上 /v1/chat/completions。",
+      "default": "",
+      "maxLength": 256
+    },
+    {
+      "key": "openaimodel",
+      "type": "string",
+      "title": "OpenAI 兼容模型",
+      "description": "请求里的 model 字段，例如 gpt-4o-mini。",
+      "default": "gpt-4o-mini",
+      "maxLength": 128
+    },
+    {
+      "key": "openaikey",
+      "type": "secret",
+      "title": "OpenAI 兼容 API 密钥",
+      "description": "由宿主保存，只随发往你填写的地址的请求以 Authorization: Bearer 发送。",
+      "host": "openaiurl"
+    },
+    {
+      "key": "claudeurl",
+      "type": "string",
+      "title": "Claude 兼容服务地址",
+      "description": "只填 https 主机名，例如 https://api.anthropic.com；扩展自己拼上 /v1/messages。",
+      "default": "",
+      "maxLength": 256
+    },
+    {
+      "key": "claudemodel",
+      "type": "string",
+      "title": "Claude 兼容模型",
+      "description": "请求里的 model 字段，例如 claude-sonnet-4-5。",
+      "default": "claude-sonnet-4-5",
+      "maxLength": 128
+    },
+    {
+      "key": "claudekey",
+      "type": "secret",
+      "title": "Claude 兼容 API 密钥",
+      "description": "由宿主保存，只随发往你填写的地址的请求以 x-api-key 发送。",
+      "host": "claudeurl",
+      "header": "x-api-key"
     }
   ],
   "surface": {

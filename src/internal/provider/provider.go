@@ -5,11 +5,14 @@
 // Three services are offered and none needs an account or a key: Google's
 // public web endpoint and MyMemory's free API, both of which cover a wide set
 // of languages, and Bilibili's Index-Translate service, which translates
-// between Chinese, English and Japanese. A word card is filled in from
-// Youdao's free dictionary endpoint whichever service translated it. The host
-// proxy performs every request, so the runtime never sees a socket or a
-// certificate; only the hosts declared in mypaste.plugin.json can be reached,
-// and the text to translate is the only thing sent.
+// between Chinese, English and Japanese. Two more carry a key the host keeps:
+// DeepSeek's own endpoint, and any OpenAI- or Anthropic-compatible service
+// whose address and model the reader names (D-1185). A word card is filled in
+// from Youdao's free dictionary endpoint whichever service translated it. The
+// host proxy performs every request, so the runtime never sees a socket or a
+// certificate; only the hosts declared in mypaste.plugin.json, plus the ones
+// the reader filled in, can be reached, and the text to translate is the only
+// thing sent.
 package provider
 
 import (
@@ -49,6 +52,10 @@ type ProviderInfo struct {
 	Targets      []string    `json:"targets"`
 	Models       []ModelInfo `json:"models,omitempty"`
 	DefaultModel string      `json:"defaultModel,omitempty"`
+	// Note is a sentence the page shows in place of its usual hint, for a
+	// service the reader still has to set up. It is empty once nothing is
+	// missing; the runtime decides that from the invocation's settings.
+	Note string `json:"note,omitempty"`
 }
 
 // allTargets is every direction Google and MyMemory accept;
@@ -97,11 +104,28 @@ var (
 			},
 			DefaultModel: "deepseek-chat",
 		},
+		{
+			// D-1185: the address, the model and the key are the reader's, not
+			// this list's. The page draws whichever compatible service the reader
+			// configured; this entry only names the family.
+			ID:          "openai",
+			Name:        openAICompat.Label + "服务",
+			Description: "任何兼容 OpenAI Chat Completions 的服务：地址、模型与密钥在 设置 › 扩展 › 翻译对照 里填写。",
+			Targets:     allTargets,
+		},
+		{
+			ID:          "claude",
+			Name:        claudeCompat.Label + "服务",
+			Description: "任何兼容 Anthropic Messages 的服务：地址、模型与密钥在 设置 › 扩展 › 翻译对照 里填写。",
+			Targets:     allTargets,
+		},
 	}
 )
 
-// Providers returns the closed list of services the page may offer.
-func Providers() []ProviderInfo {
+// Providers returns the closed list of services the page may offer. The
+// invocation's settings only decide whether a compatible service is ready to
+// use; the list itself, and every language it accepts, is fixed here.
+func Providers(settings map[string]any) []ProviderInfo {
 	providers := make([]ProviderInfo, len(providerList))
 	for index, info := range providerList {
 		providers[index] = ProviderInfo{
@@ -111,6 +135,11 @@ func Providers() []ProviderInfo {
 			Targets:      append([]string(nil), info.Targets...),
 			Models:       append([]ModelInfo(nil), info.Models...),
 			DefaultModel: info.DefaultModel,
+		}
+		if service, ok := compatServiceFor(info.ID); ok {
+			if _, err := service.origin(settings); err != nil {
+				providers[index].Note = "地址与模型在 设置 › 扩展 › 翻译对照 中填写后可用"
+			}
 		}
 	}
 	return providers
@@ -166,12 +195,16 @@ func NormalizeSettings(stored Settings) (Settings, error) {
 	return settings, nil
 }
 
-// Request is one paragraph or word the page asked about.
+// Request is one paragraph or word the page asked about. Settings carries the
+// declared non-secret settings the host attached to this invocation; only a
+// compatible service reads them, for the address and model the reader filled
+// in. A secret is never part of this object (D-1177).
 type Request struct {
 	Text     string
 	Provider string
 	Target   string
 	Model    string
+	Settings map[string]any
 }
 
 // Result is one translated paragraph or one dictionary card.
@@ -241,6 +274,10 @@ func Translate(ctx context.Context, caller Caller, request Request) (Result, err
 		return mymemoryTranslate(ctx, caller, text, settings.Target)
 	case "deepseek":
 		return deepseekTranslate(ctx, caller, text, settings.Target, settings.Model)
+	case "openai":
+		return openaiTranslate(ctx, caller, text, settings.Target, request.Settings)
+	case "claude":
+		return claudeTranslate(ctx, caller, text, settings.Target, request.Settings)
 	default:
 		return Result{}, errors.New("翻译服务无效")
 	}
@@ -276,6 +313,12 @@ func Lookup(ctx context.Context, caller Caller, request Request) (Result, error)
 		return withDictionary(ctx, caller, result, err)
 	case "deepseek":
 		result, err := deepseekLookup(ctx, caller, word, settings.Target, settings.Model)
+		return withDictionary(ctx, caller, result, err)
+	case "openai":
+		result, err := openaiLookup(ctx, caller, word, settings.Target, request.Settings)
+		return withDictionary(ctx, caller, result, err)
+	case "claude":
+		result, err := claudeLookup(ctx, caller, word, settings.Target, request.Settings)
 		return withDictionary(ctx, caller, result, err)
 	default:
 		return Result{}, errors.New("翻译服务无效")

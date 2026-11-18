@@ -31,12 +31,14 @@ const (
 )
 
 // invocation is the plugin v2 request line, reduced to the fields these
-// commands read. Unknown fields are ignored by design.
+// commands read. Unknown fields are ignored by design. Settings carries the
+// manifest's declared non-secret values; a secret is never in here (D-1177).
 type invocation struct {
-	ID             string `json:"id"`
-	Method         string `json:"method"`
-	CommandID      string `json:"commandId"`
-	DeadlineUnixMs int64  `json:"deadlineUnixMs"`
+	ID             string         `json:"id"`
+	Method         string         `json:"method"`
+	CommandID      string         `json:"commandId"`
+	DeadlineUnixMs int64          `json:"deadlineUnixMs"`
+	Settings       map[string]any `json:"settings,omitempty"`
 	Input          *struct {
 		Type string `json:"type"`
 		Text string `json:"text"`
@@ -128,11 +130,11 @@ func main() {
 	var output any
 	switch call.CommandID {
 	case "translate.paragraph":
-		output, err = translateParagraph(ctx, client, text)
+		output, err = translateParagraph(ctx, client, text, call.Settings)
 	case "translate.word":
-		output, err = lookupWord(ctx, client, text)
+		output, err = lookupWord(ctx, client, text, call.Settings)
 	case "translate.settings":
-		output, err = readOrWriteSettings(ctx, client, text)
+		output, err = readOrWriteSettings(ctx, client, text, call.Settings)
 	default:
 		err = errors.New("不支持的翻译操作")
 	}
@@ -152,7 +154,9 @@ func main() {
 	})
 }
 
-func translateParagraph(ctx context.Context, client *host.Client, text string) (any, error) {
+func translateParagraph(
+	ctx context.Context, client *host.Client, text string, settings map[string]any,
+) (any, error) {
 	var request paragraphRequest
 	if err := json.Unmarshal([]byte(text), &request); err != nil {
 		return nil, errors.New("翻译参数无效")
@@ -162,10 +166,13 @@ func translateParagraph(ctx context.Context, client *host.Client, text string) (
 		Provider: request.Provider,
 		Target:   request.Target,
 		Model:    request.Model,
+		Settings: settings,
 	})
 }
 
-func lookupWord(ctx context.Context, client *host.Client, text string) (any, error) {
+func lookupWord(
+	ctx context.Context, client *host.Client, text string, settings map[string]any,
+) (any, error) {
 	var request wordRequest
 	if err := json.Unmarshal([]byte(text), &request); err != nil {
 		return nil, errors.New("查询参数无效")
@@ -175,10 +182,13 @@ func lookupWord(ctx context.Context, client *host.Client, text string) (any, err
 		Provider: request.Provider,
 		Target:   request.Target,
 		Model:    request.Model,
+		Settings: settings,
 	})
 }
 
-func readOrWriteSettings(ctx context.Context, client *host.Client, text string) (any, error) {
+func readOrWriteSettings(
+	ctx context.Context, client *host.Client, text string, settings map[string]any,
+) (any, error) {
 	var request settingsRequest
 	if err := json.Unmarshal([]byte(text), &request); err != nil {
 		return nil, errors.New("偏好参数无效")
@@ -189,7 +199,7 @@ func readOrWriteSettings(ctx context.Context, client *host.Client, text string) 
 		if err != nil {
 			return nil, err
 		}
-		return view(current), nil
+		return view(current, settings), nil
 	case "write":
 		if request.Settings == nil {
 			return nil, errors.New("偏好内容缺失")
@@ -205,14 +215,14 @@ func readOrWriteSettings(ctx context.Context, client *host.Client, text string) 
 		if err := client.StorageWrite(ctx, settingsKey, encoded); err != nil {
 			return nil, fmt.Errorf("无法保存偏好：%w", err)
 		}
-		return view(clean), nil
+		return view(clean, settings), nil
 	default:
 		return nil, errors.New("不支持的偏好操作")
 	}
 }
 
-func view(current provider.Settings) settingsView {
-	return settingsView{Settings: current, Providers: provider.Providers()}
+func view(current provider.Settings, settings map[string]any) settingsView {
+	return settingsView{Settings: current, Providers: provider.Providers(settings)}
 }
 
 func loadSettings(ctx context.Context, client *host.Client) (provider.Settings, error) {
