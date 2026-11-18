@@ -69,16 +69,16 @@
     display: grid;
     /* minmax(0, 1fr) keeps a wide line from stretching the whole page. */
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
     height: 100%;
   }
 
   /* ---- header: the document's name and its one primary action ---- */
   .bar {
     display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 14px 20px 13px 14px;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 18px 12px 12px;
     border-bottom: 1px solid var(--line);
   }
   .icon {
@@ -95,39 +95,18 @@
   }
   .icon:hover { background: var(--hover); color: var(--ink); }
   .icon svg { width: 16px; height: 16px; }
-  #doc-close { margin-top: 2px; }
-  .heading { min-width: 0; flex: 1; }
-  .kicker {
-    display: block;
-    font-size: 10.5px;
-    font-weight: 600;
-    letter-spacing: 0.09em;
-    color: var(--muted);
-  }
-  .heading h1 {
-    margin: 3px 0 0;
-    overflow: hidden;
-    font-size: 17px;
-    font-weight: 650;
-    line-height: 1.35;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+  #doc-close { margin-top: 0; }
+  /* one quiet caption line in the toolbar; the entry's name lives in the sheet */
   .hint {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0 6px;
-    margin: 4px 0 0;
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
     font-size: 11.5px;
     line-height: 1.5;
     color: var(--muted);
-  }
-  #source-hint {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   /* ---- options: one quiet cluster in the header, no second strip ---- */
@@ -174,51 +153,118 @@
     pointer-events: none;
   }
   .slot:hover .chev, .slot:focus-within .chev { color: var(--ink); }
-  /* the progress reads as a line of the document, not as a chip */
-  .progress {
-    flex: none;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
+  /* ---- progress: one hairline under the header, never a width of chrome ---- */
+  /* The rail keeps its row even when idle: a hidden grid item would pull the
+     reader up into the auto row and shrink the page. Only the fill fades. */
+  .rail {
+    position: relative;
+    height: 2px;
+    background: transparent;
   }
-  .progress:not(:empty)::before { content: "·"; margin-right: 6px; opacity: 0.55; }
-  .progress:empty { display: none; }
+  #progress-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 0;
+    border-radius: var(--radius-pill);
+    background: color-mix(in srgb, var(--accent) 46%, transparent);
+    opacity: 0;
+    transition:
+      width 320ms cubic-bezier(0.2, 0.7, 0.3, 1),
+      opacity 160ms ease;
+  }
+  .rail[data-active="true"] #progress-fill { opacity: 1; }
   .primary {
+    display: inline-flex;
     flex: none;
+    align-items: center;
     height: 32px;
-    padding: 0 16px;
-    border: 1px solid transparent;
+    padding: 0 14px;
+    border: 1px solid var(--line);
     border-radius: var(--radius-sm);
-    background: var(--accent);
-    color: var(--accent-ink);
+    background: var(--surface);
+    color: var(--ink);
     font-size: 12.5px;
     font-weight: 600;
     white-space: nowrap;
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease,
+      color 120ms ease;
   }
-  .primary:hover { filter: brightness(1.05); }
-  .primary.is-running {
-    background: transparent;
-    border-color: var(--line);
-    color: var(--ink);
+  .primary:hover {
+    border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+    background: var(--hover);
   }
+  .primary.is-running { color: var(--danger); }
 
-  /* ---- reader: one measured column, translation under its own paragraph ---- */
+  /* ---- reader: one sheet of paper, a measured column on it ---- */
   .reader {
-    overflow-y: auto;
-    padding: 30px 24px 96px;
-    scrollbar-gutter: stable;
-  }
-  .blocks {
-    max-width: 700px;
-    margin: 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 26px;
+    overflow-y: auto;
+    padding: 26px 24px 72px;
+    scrollbar-gutter: stable;
+    scrollbar-color: color-mix(in srgb, var(--ink) 22%, transparent) transparent;
+  }
+  .sheet {
+    flex: 1 0 auto;
+    width: 100%;
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 36px 48px 56px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow:
+      0 1px 2px color-mix(in srgb, var(--ink) 5%, transparent),
+      0 24px 48px -32px color-mix(in srgb, var(--ink) 30%, transparent);
+  }
+  /* ---- the sheet opens with the entry's own name, like a printed page ---- */
+  .doc { display: flex; flex-direction: column; }
+  .kicker {
+    display: block;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    color: var(--muted);
+  }
+  .doc h1 {
+    display: -webkit-box;
+    margin: 9px 0 0;
+    overflow: hidden;
+    font-size: 24px;
+    font-weight: 650;
+    line-height: 1.28;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+  .doc-status {
+    margin: 9px 0 0;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+  }
+  .doc-status[hidden] { display: none; }
+  .doc-rule {
+    height: 1px;
+    margin: 22px 0 28px;
+    background: var(--line);
+  }
+  .blocks {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
   }
   .block { margin: 0; }
   .source {
     margin: 0;
-    font-size: 17px;
-    line-height: 1.8;
+    font-size: 17.5px;
+    line-height: 1.85;
+    letter-spacing: 0.002em;
+    text-wrap: pretty;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
@@ -230,12 +276,13 @@
   .word:hover { background: var(--hover); }
   .word[data-active="true"] { background: var(--hover); }
   .translation {
-    margin: 10px 0 0;
-    padding-left: 12px;
-    border-left: 2px solid color-mix(in srgb, var(--accent) 38%, transparent);
+    margin: 9px 0 0;
+    padding-left: 15px;
+    border-left: 2px solid color-mix(in srgb, var(--accent) 34%, transparent);
     font-size: 15.5px;
-    line-height: 1.7;
+    line-height: 1.78;
     color: var(--muted);
+    text-wrap: pretty;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
@@ -251,27 +298,35 @@
     font: inherit;
   }
   .empty {
-    max-width: 420px;
-    margin: 14vh auto 0;
+    max-width: 400px;
+    margin: 7vh auto 0;
     color: var(--muted);
     font-size: 13px;
-    line-height: 1.7;
+    line-height: 1.75;
     text-align: center;
   }
-  .empty strong { display: block; margin-bottom: 6px; color: var(--ink); font-size: 14px; }
+  .empty strong {
+    display: block;
+    margin-bottom: 7px;
+    color: var(--ink);
+    font-size: 15px;
+    font-weight: 650;
+  }
 
   /* ---- word card: a small dictionary page, not a tooltip ---- */
   .card {
     position: fixed;
     z-index: 20;
-    width: 336px;
+    width: 344px;
     max-height: 62vh;
     overflow-y: auto;
-    padding: 16px;
+    padding: 17px;
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
     background: var(--surface);
-    box-shadow: 0 18px 44px rgba(20, 14, 8, 0.24);
+    box-shadow:
+      0 2px 6px color-mix(in srgb, var(--ink) 8%, transparent),
+      0 24px 56px -20px color-mix(in srgb, var(--ink) 40%, transparent);
   }
   .card-head { display: flex; align-items: flex-start; gap: 8px; }
   .card-title { min-width: 0; flex: 1; }
@@ -393,13 +448,16 @@
 
   @media (max-width: 640px) {
     .bar { flex-wrap: wrap; align-items: center; padding: 12px 16px 12px 12px; }
-    .heading h1 { font-size: 16px; }
-    #source-hint { white-space: normal; }
-    .actions { order: 3; width: 100%; }
-    .cluster { flex: 1; min-width: 0; }
-    .slot { flex: 1; }
+    .hint { display: none; }
+    .actions { flex: 1; min-width: 0; justify-content: flex-end; }
+    .cluster { flex: 1 1 auto; min-width: 0; }
+    .slot { flex: 1 1 0; min-width: 0; }
     .slot select { width: 100%; max-width: none; padding-right: 20px; }
-    .reader { padding: 22px 18px 80px; }
+    .reader { padding: 14px 12px 48px; }
+    .sheet { padding: 24px 20px 36px; }
+    .doc h1 { font-size: 20px; }
+    .doc-rule { margin: 18px 0 22px; }
+    .source { font-size: 16.5px; }
   }
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; animation: none !important; }
@@ -416,14 +474,9 @@
                 stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
-      <div class="heading">
-        <span class="kicker">翻译对照</span>
-        <h1 id="doc-title">正在读取条目…</h1>
-        <p class="hint">
-          <span id="source-hint">原文按段发往所选服务，结果只留在本页 · Esc 退出</span>
-          <span id="progress" class="progress" role="status" aria-live="polite"></span>
-        </p>
-      </div>
+      <p class="hint">
+        <span id="source-hint">原文按段发往所选服务，结果只留在本页 · Esc 退出</span>
+      </p>
       <div class="actions">
         <div class="cluster">
           <span class="slot" id="provider-field" hidden>
@@ -442,9 +495,20 @@
         <button id="translate-button" class="primary" type="button">翻译</button>
       </div>
     </header>
+    <div id="rail" class="rail" aria-hidden="true"><span id="progress-fill"></span></div>
     <main id="reader" class="reader" tabindex="0">
-      <div id="empty" class="empty" hidden></div>
-      <div id="blocks" class="blocks"></div>
+      <div class="sheet">
+        <header class="doc">
+          <span class="kicker">翻译对照</span>
+          <h1 id="doc-title">正在读取条目…</h1>
+          <p class="doc-status">
+            <span id="progress" role="status" aria-live="polite"></span>
+          </p>
+          <div class="doc-rule"></div>
+        </header>
+        <div id="empty" class="empty" hidden></div>
+        <div id="blocks" class="blocks"></div>
+      </div>
     </main>
   </div>
   <aside id="word-card" class="card" role="dialog" aria-label="单词释义" hidden>

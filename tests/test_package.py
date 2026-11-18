@@ -230,7 +230,7 @@ class TranslateManifestTests(unittest.TestCase):
         self.assertIn(setting["host"], self.manifest["runtime"]["networkHosts"])
         self.assertIn("network.outbound", self.manifest["capabilities"])
         self.assertNotIn("default", setting)
-        self.assertEqual(self.manifest["version"], "1.3.0")
+        self.assertEqual(self.manifest["version"], "1.4.0")
 
     def test_capabilities_stay_inside_the_closed_list(self) -> None:
         capabilities = set(self.manifest["capabilities"])

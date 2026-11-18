@@ -106,6 +106,9 @@ const docTitle = one<HTMLHeadingElement>("#doc-title");
 const blocksHost = one<HTMLDivElement>("#blocks");
 const emptyState = one<HTMLDivElement>("#empty");
 const progress = one<HTMLSpanElement>("#progress");
+const docStatus = one<HTMLElement>(".doc-status");
+const rail = one<HTMLElement>("#rail");
+const progressFill = one<HTMLElement>("#progress-fill");
 const sourceHint = one<HTMLSpanElement>("#source-hint");
 const translateButton = one<HTMLButtonElement>("#translate-button");
 const providerSelect = one<HTMLSelectElement>("#provider-select");
@@ -186,10 +189,19 @@ function refreshHint(): void {
     : "原文会分段发往所选的翻译服务，结果只留在本页 · Esc 退出";
 }
 
+function setProgress(text: string): void {
+  progress.textContent = text;
+  // The sheet carries one status line under its title; an empty one collapses
+  // so the heading rule never floats above a blank gap.
+  docStatus.hidden = text === "";
+}
+
 function refreshProgress(): void {
   const total = state.blocks.length;
   if (total === 0) {
-    progress.textContent = "";
+    setProgress("");
+    rail.dataset.active = "false";
+    progressFill.style.width = "0";
     return;
   }
   let done = 0;
@@ -198,19 +210,24 @@ function refreshProgress(): void {
     if (block.status === "done") done += 1;
     else if (block.status === "error") failed += 1;
   }
+  // The hairline under the header answers "how far in" at a glance while the
+  // work is running; the sentence beside it still carries the exact count, and
+  // an idle page keeps the line out of the way.
+  rail.dataset.active = state.translating ? "true" : "false";
+  progressFill.style.width = `${Math.round((done / total) * 100)}%`;
   if (state.translating) {
-    progress.textContent = `正在翻译 ${done}/${total} 段`;
+    setProgress(`正在翻译 ${done}/${total} 段`);
     return;
   }
   if (done === total) {
-    progress.textContent = `全文 ${total} 段已译完`;
+    setProgress(`全文 ${total} 段已译完`);
     return;
   }
   if (failed > 0) {
-    progress.textContent = `已译 ${done}/${total} 段 · ${failed} 段未译出`;
+    setProgress(`已译 ${done}/${total} 段 · ${failed} 段未译出`);
     return;
   }
-  progress.textContent = done > 0 ? `已译 ${done}/${total} 段 · 已停止` : "";
+  setProgress(done > 0 ? `已译 ${done}/${total} 段 · 已停止` : "");
 }
 
 function refreshButton(): void {
