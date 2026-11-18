@@ -3,7 +3,7 @@
   "kind": "ui",
   "id": "com.mypaste.translate",
   "name": "翻译对照",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "把一条外文条目排成对照阅读：每段原文下方给出译文并保留段落；点单词弹出释义卡片。服务在顶部切换：Google 翻译（translate.googleapis.com）、MyMemory（api.mymemory.translated.net）、Bilibili Index-Translate、DeepSeek（api.deepseek.com）、OpenAI 兼容与 Claude 兼容（地址与模型在扩展设置里填写，密钥由宿主保管）；音标与词性从有道词典（dict.youdao.com）补齐。原文只按段发往所选服务，结果只留在本页。",
   "capabilities": [
     "entity.read",
@@ -38,7 +38,7 @@
       "key": "openaiurl",
       "type": "string",
       "title": "OpenAI 兼容服务地址",
-      "description": "只填 https 主机名，例如 https://api.openai.com；扩展自己拼上 /v1/chat/completions。",
+      "description": "只填协议、主机与端口，例如 https://api.openai.com 或 http://192.168.1.10:11434（http 会明文发送）；扩展自己拼上 /v1/chat/completions。",
       "default": "",
       "maxLength": 256
     },
@@ -61,7 +61,7 @@
       "key": "claudeurl",
       "type": "string",
       "title": "Claude 兼容服务地址",
-      "description": "只填 https 主机名，例如 https://api.anthropic.com；扩展自己拼上 /v1/messages。",
+      "description": "只填协议、主机与端口，例如 https://api.anthropic.com，或内网地址 http://192.168.1.10:11434（http 会明文发送）；扩展自己拼上 /v1/messages。",
       "default": "",
       "maxLength": 256
     },

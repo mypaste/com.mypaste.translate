@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -73,23 +74,54 @@ func (service compatService) endpoint(settings map[string]any) (string, string, 
 
 // origin validates the one address the reader typed. The host applies the
 // same rule when the setting is saved; checking here as well turns a stale or
-// hand-edited value into a sentence the page can show.
+// hand-edited value into a sentence the page can show. Plain HTTP is accepted
+// on purpose: a self-hosted gateway usually runs it on a high port, and the
+// host keeps the whole origin (scheme, host and port) as the one destination
+// the key may travel to (D-1187).
 func (service compatService) origin(settings map[string]any) (string, error) {
 	raw := strings.TrimSpace(settingText(settings, service.URLKey))
 	if raw == "" {
 		return "", fmt.Errorf(
-			"%s还没有填写服务地址：请在 设置 › 扩展 › 翻译对照 中填写 https 主机名", service.Label)
+			"%s还没有填写服务地址：请在 设置 › 扩展 › 翻译对照 中填写 https 或 http 地址", service.Label)
 	}
 	parsed, err := url.Parse(raw)
-	if err != nil || parsed.Scheme != "https" || parsed.Hostname() == "" {
-		return "", fmt.Errorf("%s的服务地址必须是 https 地址，例如 https://api.example.com", service.Label)
+	if err != nil {
+		return "", fmt.Errorf("%s的服务地址无效，例如 https://api.example.com 或 http://192.168.1.10:11434",
+			service.Label)
 	}
-	if parsed.User != nil || (parsed.Port() != "" && parsed.Port() != "443") ||
+	scheme := strings.ToLower(parsed.Scheme)
+	if (scheme != "https" && scheme != "http") || parsed.Hostname() == "" {
+		return "", fmt.Errorf("%s的服务地址必须是 https 或 http 地址，例如 https://api.example.com 或 http://192.168.1.10:11434",
+			service.Label)
+	}
+	if parsed.User != nil ||
 		(parsed.Path != "" && parsed.Path != "/") || parsed.RawPath != "" ||
 		parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Opaque != "" {
-		return "", fmt.Errorf("%s的服务地址只填主机名，不要带端口、路径或查询", service.Label)
+		return "", fmt.Errorf("%s的服务地址只填协议、主机与端口，不要带用户名、路径或查询", service.Label)
 	}
-	return "https://" + strings.ToLower(parsed.Hostname()), nil
+	host := strings.ToLower(parsed.Hostname())
+	if strings.Contains(host, ":") {
+		host = "[" + host + "]"
+	}
+	origin := scheme + "://" + host
+	port := parsed.Port()
+	if port != "" {
+		number, convErr := strconv.Atoi(port)
+		if convErr != nil || number <= 0 || number > 65535 {
+			return "", fmt.Errorf("%s的服务地址端口无效", service.Label)
+		}
+	}
+	if port != "" && port != defaultPort(scheme) {
+		origin += ":" + port
+	}
+	return origin, nil
+}
+
+func defaultPort(scheme string) string {
+	if scheme == "http" {
+		return "80"
+	}
+	return "443"
 }
 
 func settingText(settings map[string]any, key string) string {

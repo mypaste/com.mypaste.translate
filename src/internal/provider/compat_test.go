@@ -59,6 +59,42 @@ func TestOpenAICompatUsesTheReadersAddressAndModel(t *testing.T) {
 	}
 }
 
+// D-1187: a self-hosted gateway is usually plain HTTP on a high port, and the
+// origin the reader typed travels to the request unchanged — scheme, host case
+// and port included. Only the scheme's default port is dropped.
+func TestCompatKeepsTheReadersOrigin(t *testing.T) {
+	cases := []struct {
+		provider string
+		settings map[string]any
+		url      string
+	}{
+		{"openai", map[string]any{"openaiurl": "http://192.168.1.10:11434"},
+			"http://192.168.1.10:11434/v1/chat/completions"},
+		{"claude", map[string]any{"claudeurl": "http://Gateway.Lan:8080/"},
+			"http://gateway.lan:8080/v1/messages"},
+		{"openai", map[string]any{"openaiurl": "https://relay.example.com:8443"},
+			"https://relay.example.com:8443/v1/chat/completions"},
+		{"openai", map[string]any{"openaiurl": "https://relay.example.com:443/"},
+			"https://relay.example.com/v1/chat/completions"},
+		{"claude", map[string]any{"claudeurl": "http://[::1]:8080"},
+			"http://[::1]:8080/v1/messages"},
+	}
+	for _, test := range cases {
+		answer := completion("译文。")
+		if test.provider == "claude" {
+			answer = claudeAnswerBody("译文。")
+		}
+		caller := &fakeCaller{responses: []host.NetworkResponse{answer}}
+		if _, err := Translate(context.Background(), caller, compatRequest(
+			test.provider, "Text.", AutoTarget, test.settings)); err != nil {
+			t.Fatalf("%s %#v: %v", test.provider, test.settings, err)
+		}
+		if len(caller.requests) != 1 || caller.requests[0].URL != test.url {
+			t.Fatalf("%s %#v: requests = %#v", test.provider, test.settings, caller.requests)
+		}
+	}
+}
+
 func claudeAnswerBody(text string) host.NetworkResponse {
 	body, _ := json.Marshal(map[string]any{
 		"content":     []map[string]string{{"type": "text", "text": text}},
@@ -145,10 +181,9 @@ func TestCompatRefusesAnUnfilledOrMalformedAddress(t *testing.T) {
 	}{
 		{"openai", nil, "还没有填写服务地址"},
 		{"openai", map[string]any{"openaiurl": "  "}, "还没有填写服务地址"},
-		{"openai", map[string]any{"openaiurl": "http://relay.example.com"}, "必须是 https 地址"},
-		{"openai", map[string]any{"openaiurl": "https://relay.example.com/v1"}, "只填主机名"},
-		{"openai", map[string]any{"openaiurl": "https://relay.example.com:8443"}, "只填主机名"},
-		{"claude", map[string]any{"claudeurl": "https://user:x@relay.example.com"}, "只填主机名"},
+		{"openai", map[string]any{"openaiurl": "ftp://relay.example.com"}, "必须是 https 或 http 地址"},
+		{"openai", map[string]any{"openaiurl": "https://relay.example.com/v1"}, "只填协议、主机与端口"},
+		{"claude", map[string]any{"claudeurl": "https://user:x@relay.example.com"}, "只填协议、主机与端口"},
 	}
 	for _, test := range cases {
 		caller := &fakeCaller{}
