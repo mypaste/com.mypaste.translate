@@ -2,13 +2,14 @@
 // of the translation services the manifest declares, and turns each answer
 // into the small JSON the page draws.
 //
-// Two services are offered and neither needs an account or a key: Google's
-// public web endpoint, which covers the widest set of languages, and
-// Bilibili's Index-Translate service, which translates between Chinese,
-// English and Japanese. The host proxy performs every request, so the runtime
-// never sees a socket or a certificate; only the hosts declared in
-// mypaste.plugin.json can be reached, and the text to translate is the only
-// thing sent.
+// Three services are offered and none needs an account or a key: Google's
+// public web endpoint and MyMemory's free API, both of which cover a wide set
+// of languages, and Bilibili's Index-Translate service, which translates
+// between Chinese, English and Japanese. A word card is filled in from
+// Youdao's free dictionary endpoint whichever service translated it. The host
+// proxy performs every request, so the runtime never sees a socket or a
+// certificate; only the hosts declared in mypaste.plugin.json can be reached,
+// and the text to translate is the only thing sent.
 package provider
 
 import (
@@ -50,12 +51,12 @@ type ProviderInfo struct {
 	DefaultModel string      `json:"defaultModel,omitempty"`
 }
 
-// allTargets is every direction Google accepts; bilibiliTargets is the subset
-// Index-Translate supports.
+// allTargets is every direction Google and MyMemory accept;
+// bilibiliTargets is the subset Index-Translate supports.
 var (
 	allTargets = []string{
 		AutoTarget, "zh-CN", "zh-TW", "en", "ja", "ko",
-		"fr", "de", "es", "pt", "ru", "it",
+		"fr", "de", "es", "pt", "ru", "it", "ar", "nl", "th", "vi",
 	}
 	bilibiliTargets = []string{AutoTarget, "zh-CN", "en", "ja"}
 	bilibiliModels  = []ModelInfo{
@@ -75,6 +76,12 @@ var (
 			ID:          "google",
 			Name:        "Google 翻译",
 			Description: "免费的网页接口，支持的语言最多。",
+			Targets:     allTargets,
+		},
+		{
+			ID:          "mymemory",
+			Name:        "MyMemory",
+			Description: "MyMemory 的免费接口，无需密钥，每天有一定的免费额度。",
 			Targets:     allTargets,
 		},
 	}
@@ -164,11 +171,19 @@ type Result struct {
 
 // Word is the dictionary card for one word or phrase.
 type Word struct {
-	Term        string  `json:"term"`
-	Phonetic    string  `json:"phonetic,omitempty"`
-	Translit    string  `json:"translit,omitempty"`
-	Translation string  `json:"translation,omitempty"`
-	Entries     []Entry `json:"entries,omitempty"`
+	Term        string     `json:"term"`
+	Phonetics   []Phonetic `json:"phonetics,omitempty"`
+	Translit    string     `json:"translit,omitempty"`
+	Translation string     `json:"translation,omitempty"`
+	Entries     []Entry    `json:"entries,omitempty"`
+	Dictionary  string     `json:"dictionary,omitempty"`
+}
+
+// Phonetic is one pronunciation written out, labelled by the accent it
+// belongs to when the dictionary says which one it is.
+type Phonetic struct {
+	Label string `json:"label,omitempty"`
+	Value string `json:"value"`
 }
 
 // Entry groups senses by part of speech, in the order the service ranks them.
@@ -209,6 +224,8 @@ func Translate(ctx context.Context, caller Caller, request Request) (Result, err
 		return googleTranslate(ctx, caller, text, settings.Target)
 	case "bilibili":
 		return bilibiliTranslate(ctx, caller, text, settings.Target, settings.Model)
+	case "mymemory":
+		return mymemoryTranslate(ctx, caller, text, settings.Target)
 	default:
 		return Result{}, errors.New("翻译服务无效")
 	}
@@ -234,12 +251,44 @@ func Lookup(ctx context.Context, caller Caller, request Request) (Result, error)
 	}
 	switch settings.Provider {
 	case "google":
+		// Google answers with its own dictionary, phonetics included.
 		return googleLookup(ctx, caller, word, settings.Target)
 	case "bilibili":
-		return bilibiliLookup(ctx, caller, word, settings.Target, settings.Model)
+		result, err := bilibiliLookup(ctx, caller, word, settings.Target, settings.Model)
+		return withDictionary(ctx, caller, result, err)
+	case "mymemory":
+		result, err := mymemoryLookup(ctx, caller, word, settings.Target)
+		return withDictionary(ctx, caller, result, err)
 	default:
 		return Result{}, errors.New("翻译服务无效")
 	}
+}
+
+// withDictionary fills a service's plain word card in from Youdao's free
+// dictionary. The lookup is best effort: a card without phonetics or senses is
+// still worth drawing, so a failure leaves the translation alone.
+func withDictionary(ctx context.Context, caller Caller, result Result, err error) (Result, error) {
+	if err != nil || result.Word == nil {
+		return result, err
+	}
+	entry, lookupErr := youdaoLookup(ctx, caller, result.Word.Term)
+	if lookupErr != nil || entry == nil {
+		return result, nil
+	}
+	card := result.Word
+	if len(card.Phonetics) == 0 {
+		card.Phonetics = entry.Phonetics
+	}
+	if len(card.Entries) == 0 {
+		card.Entries = entry.Entries
+	}
+	if card.Translation == "" {
+		card.Translation = entry.Translation
+	}
+	if len(entry.Phonetics) > 0 || len(entry.Entries) > 0 {
+		card.Dictionary = entry.Dictionary
+	}
+	return result, nil
 }
 
 func findProvider(id string) (ProviderInfo, bool) {
@@ -306,22 +355,40 @@ func joinParts(target string, parts []string) string {
 // splitChunks cuts text into at most limit runes each, preferring sentence
 // ends and then whitespace, so a long paragraph keeps its own punctuation.
 func splitChunks(text string, limit int) []string {
+	return splitChunksBy(text, limit, func(chunk string) int { return len([]rune(chunk)) })
+}
+
+// splitChunksBytes is the same cut measured in bytes, for a service that
+// limits its query that way.
+func splitChunksBytes(text string, limit int) []string {
+	return splitChunksBy(text, limit, func(chunk string) int { return len(chunk) })
+}
+
+// splitChunksBy cuts text into chunks weighing at most limit each, preferring
+// sentence ends and then whitespace, so a long paragraph keeps its own
+// punctuation. It never returns an empty chunk.
+func splitChunksBy(text string, limit int, weight func(string) int) []string {
 	runes := []rune(text)
-	if len(runes) <= limit {
+	if weight(text) <= limit {
 		return []string{strings.TrimSpace(text)}
 	}
 	var chunks []string
 	for start := 0; start < len(runes); {
-		if len(runes)-start <= limit {
+		if weight(string(runes[start:])) <= limit {
 			chunk := strings.TrimSpace(string(runes[start:]))
 			if chunk != "" {
 				chunks = append(chunks, chunk)
 			}
 			break
 		}
-		end := start + limit
+		// end is one past the last rune whose chunk still fits.
+		end := start + 1
+		for end < len(runes) && weight(string(runes[start:end+1])) <= limit {
+			end++
+		}
+		lowest := start + (end-start)/2
 		cut := -1
-		for index := end; index > start+limit/2; index-- {
+		for index := end; index > lowest; index-- {
 			if isSentenceEnd(runes[index-1]) &&
 				(index == len(runes) || unicode.IsSpace(runes[index])) {
 				cut = index
@@ -329,7 +396,7 @@ func splitChunks(text string, limit int) []string {
 			}
 		}
 		if cut < 0 {
-			for index := end; index > start+limit/2; index-- {
+			for index := end; index > lowest; index-- {
 				if unicode.IsSpace(runes[index-1]) {
 					cut = index
 					break

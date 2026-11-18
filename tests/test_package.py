@@ -87,19 +87,25 @@ const word = parseWord(JSON.stringify({
   target: "zh-CN",
   word: {
     term: "run",
-    phonetic: "rən",
+    phonetics: [{ label: "英", value: "rʌn" }, { label: "美", value: "rən" }],
+    translit: "",
     translation: "跑",
+    dictionary: "有道词典",
     entries: [{
-      part: "verb",
+      part: "vt.",
       terms: ["跑", "运行"],
       senses: [{ word: "跑步", reverse: ["run"] }],
     }],
   },
 }));
 assert.equal(word.term, "run");
-assert.equal(word.phonetic, "rən");
+assert.deepEqual(word.phonetics, [
+  { label: "英", value: "rʌn" }, { label: "美", value: "rən" },
+]);
+assert.equal(word.dictionary, "有道词典");
+assert.equal(partLabel(word.entries[0].part), "及物动词");
 assert.equal(word.entries.length, 1);
-assert.equal(word.entries[0].part, "verb");
+assert.equal(word.entries[0].part, "vt.");
 assert.equal(word.entries[0].senses[0].reverse[0], "run");
 assert.equal(parseWord(JSON.stringify({ word: { translation: "跑" } })), null);
 
@@ -110,7 +116,8 @@ const plain = parseWord(JSON.stringify({
 }));
 assert.equal(plain.translation, "跑步");
 assert.deepEqual(plain.entries, []);
-assert.equal(plain.phonetic, "");
+assert.deepEqual(plain.phonetics, []);
+assert.equal(plain.dictionary, "");
 
 // -- settings: the runtime owns the offered services and directions --------
 const providers = [
@@ -156,15 +163,19 @@ assert.equal(isTarget("auto extra"), false);
 assert.equal(targetLabel("zh-CN"), "简体中文");
 assert.equal(targetLabel("xx"), "xx");
 assert.equal(partLabel("verb"), "动词");
+assert.equal(partLabel("vt."), "及物动词");
+assert.equal(partLabel("n."), "名词");
 assert.equal(partLabel("other"), "other");
 
 assert.equal(
   cardText({
-    term: "run", phonetic: "rən", translit: "", translation: "跑",
+    term: "run",
+    phonetics: [{ label: "英", value: "rʌn" }, { label: "美", value: "rən" }],
+    translit: "", translation: "跑", dictionary: "有道词典",
     entries: [{ part: "verb", terms: ["跑"], senses: [] }],
     source: "en", target: "zh-CN",
   }),
-  "run\n/rən/\n跑\n动词  跑",
+  "run\n英 /rʌn/  美 /rən/\n跑\n动词  跑",
 );
 
 console.log("translate helpers: ok");
@@ -188,17 +199,24 @@ class TranslateManifestTests(unittest.TestCase):
             "chrome": "page",
         })
 
-    def test_both_translation_hosts_are_declared(self) -> None:
+    def test_every_translation_host_is_declared(self) -> None:
         runtime = self.manifest["runtime"]
         self.assertEqual(runtime["mode"], "command")
         self.assertEqual(runtime["entrypoint"], "translate")
         self.assertEqual(
             sorted(runtime["networkHosts"]),
-            ["index-translate.bilibili.com", "translate.googleapis.com"],
+            [
+                "api.mymemory.translated.net",
+                "dict.youdao.com",
+                "index-translate.bilibili.com",
+                "translate.googleapis.com",
+            ],
         )
         description = self.manifest["description"]
         self.assertIn("translate.googleapis.com", description)
+        self.assertIn("api.mymemory.translated.net", description)
         self.assertIn("index-translate.bilibili.com", description)
+        self.assertIn("dict.youdao.com", description)
 
     def test_capabilities_stay_inside_the_closed_list(self) -> None:
         capabilities = set(self.manifest["capabilities"])

@@ -58,7 +58,7 @@ func googleLookup(ctx context.Context, caller Caller, word, target string) (Resu
 		card.Translit = answer.translit
 	}
 	if len(answer.phonetic) > 1 {
-		card.Phonetic = answer.phonetic
+		card.Phonetics = []Phonetic{{Value: answer.phonetic}}
 	}
 	for _, group := range answer.dict {
 		if len(card.Entries) >= 4 {

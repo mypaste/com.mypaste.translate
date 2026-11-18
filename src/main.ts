@@ -28,6 +28,7 @@ import {
   type Block,
   type ProviderInfo,
   type WordCard,
+  type WordPhonetic,
 } from "./text";
 
 const PLUGIN_ID = "com.mypaste.translate";
@@ -116,10 +117,11 @@ const reader = one<HTMLElement>("#reader");
 
 const card = one<HTMLElement>("#word-card");
 const cardTerm = one<HTMLHeadingElement>("#card-term");
-const cardPhonetic = one<HTMLParagraphElement>("#card-phonetic");
+const cardPhonetics = one<HTMLDivElement>("#card-phonetics");
 const cardMain = one<HTMLParagraphElement>("#card-main");
 const cardEntries = one<HTMLDivElement>("#card-entries");
 const cardSource = one<HTMLSpanElement>("#card-source");
+const cardSpeak = one<HTMLButtonElement>("#card-speak");
 const cardCopy = one<HTMLButtonElement>("#card-copy");
 const cardClose = one<HTMLButtonElement>("#card-close");
 
@@ -140,6 +142,10 @@ const LANGUAGE_LABELS: Record<string, string> = {
   pt: "葡萄牙语",
   ru: "俄语",
   it: "意大利语",
+  ar: "阿拉伯语",
+  nl: "荷兰语",
+  th: "泰语",
+  vi: "越南语",
 };
 
 /** languageLabel speaks the reader's language, falling back to the code. */
@@ -158,11 +164,6 @@ function providerName(): string {
   return currentProvider()?.name ?? "翻译服务";
 }
 
-/** providerValue is the one value the service select carries per choice. */
-function providerValue(provider: string, model: string): string {
-  return model === "" ? provider : `${provider}:${model}`;
-}
-
 function cacheKey(target: string, text: string): string {
   return `${state.provider}\u0000${state.model}\u0000${target}\u0000${text}`;
 }
@@ -177,7 +178,7 @@ function refreshHint(): void {
       ` · 译文来自 ${providerName()}`;
     return;
   }
-  sourceHint.textContent = "原文会分段发往所选的翻译服务，结果只留在本页。";
+  sourceHint.textContent = "原文会分段发往所选的翻译服务，结果只留在本页 · Esc 退出";
 }
 
 function refreshProgress(): void {
@@ -695,10 +696,69 @@ function placeCard(anchor: DOMRect): void {
   card.style.top = `${Math.round(top)}px`;
 }
 
+/** The accent a labelled phonetic is spoken in. */
+function phoneticLanguage(word: WordCard, phonetic: WordPhonetic): string {
+  if (phonetic.label === "英") return "en-GB";
+  if (phonetic.label === "美") return "en-US";
+  return termLanguage(word.term);
+}
+
+/** termLanguage guesses a voice for a term from the script it is written in. */
+function termLanguage(term: string): string {
+  if (/[\u3040-\u30ff]/.test(term)) return "ja-JP";
+  if (/[\u3400-\u9fff]/.test(term)) return "zh-CN";
+  if (/[\uac00-\ud7af]/.test(term)) return "ko-KR";
+  return "en-US";
+}
+
+let speakingSource: HTMLElement | null = null;
+let speakingTimer = 0;
+
+/** speak reads text aloud with the system voice; no network is involved. */
+function speak(text: string, lang: string, source: HTMLElement | null): void {
+  if (text.trim() === "" || typeof window.speechSynthesis === "undefined") return;
+  window.speechSynthesis.cancel();
+  window.clearTimeout(speakingTimer);
+  if (speakingSource !== null) speakingSource.classList.remove("is-speaking");
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = lang;
+  const voices = window.speechSynthesis.getVoices();
+  const voice = voices.find((item) => item.lang === lang)
+    ?? voices.find((item) => item.lang.split("-")[0] === lang.split("-")[0]);
+  if (voice !== undefined) utterance.voice = voice;
+  if (lang.startsWith("en")) utterance.rate = 0.9;
+  const done = (): void => {
+    window.clearTimeout(speakingTimer);
+    if (speakingSource !== null) speakingSource.classList.remove("is-speaking");
+    speakingSource = null;
+  };
+  utterance.addEventListener("end", done);
+  utterance.addEventListener("error", done);
+  if (source !== null) {
+    source.classList.add("is-speaking");
+    speakingSource = source;
+    // A voice that never reports "end" must not leave the mark stuck.
+    speakingTimer = window.setTimeout(done, 5000);
+  }
+  window.speechSynthesis.speak(utterance);
+}
+
+/** stopSpeaking ends the current utterance and clears its mark. */
+function stopSpeaking(): void {
+  if (typeof window.speechSynthesis === "undefined") return;
+  window.speechSynthesis.cancel();
+  window.clearTimeout(speakingTimer);
+  if (speakingSource !== null) {
+    speakingSource.classList.remove("is-speaking");
+    speakingSource = null;
+  }
+}
+
 function showCardLoading(term: string): void {
   cardTerm.textContent = term;
-  cardPhonetic.textContent = "";
-  cardPhonetic.hidden = true;
+  cardPhonetics.replaceChildren();
+  cardPhonetics.hidden = true;
+  cardSpeak.disabled = false;
   cardMain.className = "card-main pending";
   cardMain.textContent = "正在查询释义…";
   cardMain.hidden = false;
@@ -719,19 +779,42 @@ function showCardFailure(message: string): void {
   if (state.anchor !== null) placeCard(state.anchor);
 }
 
+/** renderPhonetics draws each pronunciation as its own speak button. */
+function renderPhonetics(word: WordCard): void {
+  cardPhonetics.replaceChildren();
+  for (const phonetic of word.phonetics) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "phonetic";
+    button.title = phonetic.label === "" ? "朗读" : `朗读（${phonetic.label}）`;
+    if (phonetic.label !== "") {
+      const label = document.createElement("span");
+      label.className = "phonetic-label";
+      label.textContent = phonetic.label;
+      button.append(label);
+    }
+    const value = document.createElement("span");
+    value.className = "phonetic-value";
+    value.textContent = `/${phonetic.value}/`;
+    button.append(value);
+    button.addEventListener("click", () => {
+      speak(word.term, phoneticLanguage(word, phonetic), button);
+    });
+    cardPhonetics.append(button);
+  }
+  if (word.phonetics.length === 0 && word.translit !== "") {
+    const translit = document.createElement("span");
+    translit.className = "translit";
+    translit.textContent = word.translit;
+    cardPhonetics.append(translit);
+  }
+  cardPhonetics.hidden = cardPhonetics.childElementCount === 0;
+}
+
 function renderCard(word: WordCard): void {
   state.currentCard = word;
   cardTerm.textContent = word.term;
-  if (word.phonetic !== "") {
-    cardPhonetic.textContent = `/${word.phonetic}/`;
-    cardPhonetic.hidden = false;
-  } else if (word.translit !== "") {
-    cardPhonetic.textContent = word.translit;
-    cardPhonetic.hidden = false;
-  } else {
-    cardPhonetic.textContent = "";
-    cardPhonetic.hidden = true;
-  }
+  renderPhonetics(word);
   cardMain.className = "card-main";
   cardMain.textContent = word.translation;
   cardMain.hidden = word.translation === "";
@@ -739,16 +822,18 @@ function renderCard(word: WordCard): void {
   cardEntries.replaceChildren();
   for (const entry of word.entries) {
     const group = document.createElement("div");
-    group.className = "sense-group";
+    group.className = "entry";
     const part = document.createElement("span");
     part.className = "part";
     part.textContent = partLabel(entry.part);
     group.append(part);
+    const body = document.createElement("div");
+    body.className = "entry-body";
     if (entry.terms.length > 0) {
       const terms = document.createElement("span");
       terms.className = "terms";
       terms.textContent = entry.terms.join(" · ");
-      group.append(terms);
+      body.append(terms);
     }
     if (entry.senses.length > 0) {
       const list = document.createElement("ul");
@@ -764,14 +849,16 @@ function renderCard(word: WordCard): void {
         }
         list.append(item);
       }
-      group.append(list);
+      body.append(list);
     }
+    group.append(body);
     cardEntries.append(group);
   }
 
   const source = languageLabel(word.source);
   const service = providerName();
-  cardSource.textContent = source === "" ? service : `${source} · ${service}`;
+  const origin = [word.dictionary, source, service].filter((item) => item !== "");
+  cardSource.textContent = origin.join(" · ");
   cardCopy.disabled = false;
   cardCopy.textContent = "复制释义";
   if (state.anchor !== null) placeCard(state.anchor);
@@ -834,6 +921,7 @@ function openWord(span: HTMLElement): void {
 }
 
 function closeCard(): void {
+  stopSpeaking();
   card.hidden = true;
   state.openTerm = "";
   state.anchor = null;
@@ -863,6 +951,17 @@ docClose.addEventListener("click", () => {
 });
 
 cardClose.addEventListener("click", closeCard);
+
+cardSpeak.addEventListener("click", () => {
+  const word = state.currentCard;
+  const term = word?.term ?? state.openTerm;
+  if (term === "") return;
+  const phonetic = word?.phonetics[0];
+  const lang = word !== null && phonetic !== undefined
+    ? phoneticLanguage(word, phonetic)
+    : termLanguage(term);
+  speak(term, lang, cardSpeak);
+});
 
 cardCopy.addEventListener("click", () => {
   const word = state.currentCard;
@@ -904,12 +1003,24 @@ document.addEventListener("pointerdown", (event) => {
   closeCard();
 });
 
+// Escape walks out one level at a time: the card first, then the page itself.
+// A focused select keeps its own Escape (the browser closes its menu).
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !card.hidden) {
-    event.stopPropagation();
-    closeCard();
+  if (event.key !== "Escape" || event.defaultPrevented) return;
+  if (document.activeElement instanceof HTMLSelectElement) {
+    document.activeElement.blur();
+    return;
   }
+  event.preventDefault();
+  if (!card.hidden) {
+    closeCard();
+    return;
+  }
+  stopSpeaking();
+  bridge.close();
 });
+
+window.addEventListener("pagehide", stopSpeaking);
 
 buildTargetOptions();
 refreshControls();

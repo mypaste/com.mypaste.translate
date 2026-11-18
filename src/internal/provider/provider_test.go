@@ -174,8 +174,9 @@ func TestLookupParsesDictionary(t *testing.T) {
 	if result.Word == nil {
 		t.Fatal("word card missing")
 	}
-	if result.Word.Phonetic != "rən" || result.Word.Translit != "Pǎobù" {
-		t.Fatalf("phonetic/translit = %q/%q", result.Word.Phonetic, result.Word.Translit)
+	if len(result.Word.Phonetics) != 1 || result.Word.Phonetics[0].Value != "rən" ||
+		result.Word.Translit != "Pǎobù" {
+		t.Fatalf("phonetics/translit = %+v/%q", result.Word.Phonetics, result.Word.Translit)
 	}
 	if len(result.Word.Entries) != 2 {
 		t.Fatalf("entries = %d", len(result.Word.Entries))
@@ -247,6 +248,13 @@ func TestNormalizeSettingsUsesClosedLists(t *testing.T) {
 	}
 	if clean.Model != "" {
 		t.Fatalf("google model = %q, want none", clean.Model)
+	}
+	clean, err = NormalizeSettings(Settings{Provider: "mymemory", Target: "th"})
+	if err != nil {
+		t.Fatalf("mymemory th: %v", err)
+	}
+	if clean.Provider != "mymemory" || clean.Target != "th" || clean.Model != "" {
+		t.Fatalf("mymemory = %+v", clean)
 	}
 	for _, stored := range []Settings{
 		{Provider: "youdao"},
@@ -399,19 +407,180 @@ func TestBilibiliReportsTruncatedStream(t *testing.T) {
 	}
 }
 
-func TestBilibiliLookupReturnsPlainWord(t *testing.T) {
+const youdaoRun = `{"ec":{"word":{"ukphone":"rʌn","usphone":"rʌn",
+	"trs":[{"pos":"vt.","tran":"跑；奔跑"},{"pos":"n.","tran":"跑步；行程"}]}}}`
+
+func TestBilibiliLookupFillsCardFromYoudao(t *testing.T) {
 	caller := &fakeCaller{responses: []host.NetworkResponse{
 		jsonResponse(sse(chunkFrame("跑步", "stop"))),
+		jsonResponse(youdaoRun),
 	}}
 	result, err := Lookup(context.Background(), caller, bilibiliRequest("run", "zh-CN", ""))
 	if err != nil {
 		t.Fatalf("Lookup: %v", err)
 	}
-	if result.Word == nil || result.Word.Term != "run" || result.Word.Translation != "跑步" {
+	card := result.Word
+	if card == nil || card.Term != "run" || card.Translation != "跑步" {
 		t.Fatalf("result = %+v", result)
 	}
-	if len(result.Word.Entries) != 0 || result.Word.Phonetic != "" {
-		t.Fatalf("bilibili has no dictionary: %+v", result.Word)
+	if len(card.Phonetics) != 1 || card.Phonetics[0].Label != "英" || card.Phonetics[0].Value != "rʌn" {
+		t.Fatalf("phonetics = %+v", card.Phonetics)
+	}
+	if len(card.Entries) != 2 || card.Entries[0].Part != "vt." ||
+		len(card.Entries[0].Terms) != 2 || card.Entries[0].Terms[1] != "奔跑" {
+		t.Fatalf("entries = %+v", card.Entries)
+	}
+	if card.Dictionary != youdaoName {
+		t.Fatalf("dictionary = %q", card.Dictionary)
+	}
+	if len(caller.requests) != 2 {
+		t.Fatalf("requests = %d", len(caller.requests))
+	}
+	if !strings.Contains(caller.requests[1].URL, "dict.youdao.com/jsonapi_s") {
+		t.Fatalf("dictionary url = %q", caller.requests[1].URL)
+	}
+}
+
+func TestBilibiliLookupSurvivesAMissingDictionaryEntry(t *testing.T) {
+	caller := &fakeCaller{responses: []host.NetworkResponse{
+		jsonResponse(sse(chunkFrame("跑步", "stop"))),
+		jsonResponse(`{}`),
+	}}
+	result, err := Lookup(context.Background(), caller, bilibiliRequest("run", "zh-CN", ""))
+	if err != nil {
+		t.Fatalf("Lookup: %v", err)
+	}
+	if result.Word == nil || result.Word.Translation != "跑步" {
+		t.Fatalf("result = %+v", result)
+	}
+	if len(result.Word.Entries) != 0 || len(result.Word.Phonetics) != 0 {
+		t.Fatalf("bilibili has no dictionary of its own: %+v", result.Word)
+	}
+}
+
+func TestYoudaoCardReadsBothAccentsAndArrayEntries(t *testing.T) {
+	caller := &fakeCaller{responses: []host.NetworkResponse{
+		jsonResponse(`{"ec":[{"word":{"ukphone":"rʌn","usphone":"rən",
+			"trs":[{"pos":"v.","tran":"跑"}]}}]}`),
+	}}
+	entry, err := youdaoLookup(context.Background(), caller, "run")
+	if err != nil {
+		t.Fatalf("youdaoLookup: %v", err)
+	}
+	if len(entry.Phonetics) != 2 || entry.Phonetics[0].Label != "英" || entry.Phonetics[1].Label != "美" {
+		t.Fatalf("phonetics = %+v", entry.Phonetics)
+	}
+	if len(entry.Entries) != 1 || entry.Entries[0].Terms[0] != "跑" {
+		t.Fatalf("entries = %+v", entry.Entries)
+	}
+}
+
+func TestYoudaoCardSkipsEntriesWithoutPartOfSpeech(t *testing.T) {
+	caller := &fakeCaller{responses: []host.NetworkResponse{
+		jsonResponse(`{"ec":{"word":{"ukphone":"rʌn","trs":[
+			{"pos":"","tran":"【名】鲁恩"},
+			{"pos":"v.","tran":"跑"}]}}}`),
+	}}
+	entry, err := youdaoLookup(context.Background(), caller, "run")
+	if err != nil {
+		t.Fatalf("youdaoLookup: %v", err)
+	}
+	if len(entry.Entries) != 1 || entry.Entries[0].Part != "v." ||
+		entry.Entries[0].Terms[0] != "跑" {
+		t.Fatalf("entries = %+v", entry.Entries)
+	}
+}
+
+func TestYoudaoLookupSkipsNonEnglishHeadwords(t *testing.T) {
+	caller := &fakeCaller{}
+	if _, err := youdaoLookup(context.Background(), caller, "跑步"); err == nil {
+		t.Fatal("expected an error for a Chinese headword")
+	}
+	if len(caller.requests) != 0 {
+		t.Fatalf("requests = %d, want none", len(caller.requests))
+	}
+}
+
+func TestMyMemoryTranslatesBothDirections(t *testing.T) {
+	caller := &fakeCaller{responses: []host.NetworkResponse{
+		jsonResponse(`{"responseData":{"translatedText":"Hello &amp; welcome"},"responseStatus":200}`),
+		jsonResponse(`{"responseData":{"translatedText":"你好"},"responseStatus":200}`),
+	}}
+	result, err := Translate(context.Background(), caller,
+		Request{Text: "你好", Provider: "mymemory", Target: AutoTarget})
+	if err != nil {
+		t.Fatalf("Translate: %v", err)
+	}
+	if result.Translation != "Hello & welcome" || result.Target != "en" || result.Source != "zh" {
+		t.Fatalf("result = %+v", result)
+	}
+	first, err := url.Parse(caller.requests[0].URL)
+	if err != nil {
+		t.Fatalf("url: %v", err)
+	}
+	query := first.Query()
+	if first.Host != "api.mymemory.translated.net" || query.Get("q") != "你好" ||
+		query.Get("langpair") != "zh-CN|en" {
+		t.Fatalf("first request = %q", caller.requests[0].URL)
+	}
+	result, err = Translate(context.Background(), caller,
+		Request{Text: "Hello", Provider: "mymemory", Target: AutoTarget})
+	if err != nil {
+		t.Fatalf("Translate: %v", err)
+	}
+	second, _ := url.Parse(caller.requests[1].URL)
+	if result.Translation != "你好" || second.Query().Get("langpair") != "en|zh-CN" {
+		t.Fatalf("second request = %q", caller.requests[1].URL)
+	}
+}
+
+func TestMyMemoryTranslatesIntoChineseByDefault(t *testing.T) {
+	caller := &fakeCaller{responses: []host.NetworkResponse{
+		jsonResponse(`{"responseData":{"translatedText":"你好"},"responseStatus":200}`),
+	}}
+	result, err := Translate(context.Background(), caller,
+		Request{Text: "Hello", Provider: "mymemory", Target: AutoTarget})
+	if err != nil {
+		t.Fatalf("Translate: %v", err)
+	}
+	if result.Translation != "你好" || result.Target != "zh-CN" {
+		t.Fatalf("result = %+v", result)
+	}
+	parsed, _ := url.Parse(caller.requests[0].URL)
+	if parsed.Query().Get("langpair") != "en|zh-CN" {
+		t.Fatalf("langpair = %q", parsed.Query().Get("langpair"))
+	}
+}
+
+func TestMyMemoryReportsAnExhaustedQuota(t *testing.T) {
+	caller := &fakeCaller{responses: []host.NetworkResponse{
+		jsonResponse(`{"responseData":{"translatedText":""},"responseStatus":403,
+			"responseDetails":"MYMEMORY WARNING: YOU USED ALL AVAILABLE FREE TRANSLATIONS FOR TODAY",
+			"quotaFinished":true}`),
+	}}
+	_, err := Translate(context.Background(), caller,
+		Request{Text: "Hello", Provider: "mymemory", Target: "zh-CN"})
+	if err == nil || !strings.Contains(err.Error(), "免费额度") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestMyMemoryChunksByBytes(t *testing.T) {
+	text := strings.Repeat("中文字符", 300)
+	chunks := splitChunksBytes(text, 480)
+	if len(chunks) < 2 {
+		t.Fatalf("chunks = %d", len(chunks))
+	}
+	for _, chunk := range chunks {
+		if chunk == "" {
+			t.Fatal("empty chunk")
+		}
+		if len(chunk) > 480 {
+			t.Fatalf("chunk over limit: %d bytes", len(chunk))
+		}
+	}
+	if strings.Join(chunks, "") != text {
+		t.Fatal("chunks do not rebuild the original text")
 	}
 }
 

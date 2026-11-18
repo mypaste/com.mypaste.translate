@@ -33,12 +33,19 @@ export interface WordEntry {
   senses: WordSense[];
 }
 
+/** One pronunciation, labelled by accent when the dictionary names one. */
+export interface WordPhonetic {
+  label: string;
+  value: string;
+}
+
 export interface WordCard {
   term: string;
-  phonetic: string;
+  phonetics: WordPhonetic[];
   translit: string;
   translation: string;
   entries: WordEntry[];
+  dictionary: string;
   source: string;
   target: string;
 }
@@ -88,6 +95,10 @@ export const TARGETS: { code: string; label: string }[] = [
   { code: "pt", label: "Português" },
   { code: "ru", label: "Русский" },
   { code: "it", label: "Italiano" },
+  { code: "ar", label: "العربية" },
+  { code: "nl", label: "Nederlands" },
+  { code: "th", label: "ไทย" },
+  { code: "vi", label: "Tiếng Việt" },
 ];
 
 /** targetLabel names a direction; an unknown code reads as itself. */
@@ -257,12 +268,26 @@ export function parseWord(raw: string | undefined): WordCard | null {
       });
     }
   }
+  const phonetics: WordPhonetic[] = [];
+  if (Array.isArray(word.phonetics)) {
+    for (const item of word.phonetics) {
+      const phonetic = record(item);
+      if (phonetic === null || typeof phonetic.value !== "string") continue;
+      const value = phonetic.value.trim();
+      if (value === "") continue;
+      phonetics.push({
+        label: typeof phonetic.label === "string" ? phonetic.label : "",
+        value,
+      });
+    }
+  }
   return {
     term: word.term,
-    phonetic: typeof word.phonetic === "string" ? word.phonetic : "",
+    phonetics,
     translit: typeof word.translit === "string" ? word.translit : "",
     translation: typeof word.translation === "string" ? word.translation : "",
     entries,
+    dictionary: typeof word.dictionary === "string" ? word.dictionary : "",
     source: typeof body.source === "string" ? body.source : "",
     target: typeof body.target === "string" ? body.target : "",
   };
@@ -336,18 +361,42 @@ const PART_LABELS: Record<string, string> = {
   article: "冠词",
   particle: "助词",
   exclamation: "感叹词",
+  // Dictionaries abbreviate parts of speech with a trailing period.
+  v: "动词",
+  vt: "及物动词",
+  vi: "不及物动词",
+  aux: "助动词",
+  n: "名词",
+  adj: "形容词",
+  adv: "副词",
+  prep: "介词",
+  conj: "连词",
+  pron: "代词",
+  num: "数词",
+  art: "冠词",
+  int: "感叹词",
+  abbr: "缩写",
+  phr: "短语",
 };
 
 /** partLabel speaks the reader's language; unknown labels pass through. */
 export function partLabel(part: string): string {
-  return PART_LABELS[part.toLowerCase()] ?? part;
+  const key = part.trim().toLowerCase().replace(/\.$/, "");
+  return PART_LABELS[key] ?? part;
 }
 
 /** cardText is what the card's copy button puts on the clipboard. */
 export function cardText(card: WordCard): string {
   const lines: string[] = [card.term];
-  if (card.phonetic !== "") lines.push(`/${card.phonetic}/`);
-  else if (card.translit !== "") lines.push(card.translit);
+  if (card.phonetics.length > 0) {
+    lines.push(card.phonetics
+      .map((phonetic) =>
+        `${phonetic.label === "" ? "" : `${phonetic.label} `}/${phonetic.value}/`
+      )
+      .join("  "));
+  } else if (card.translit !== "") {
+    lines.push(card.translit);
+  }
   if (card.translation !== "") lines.push(card.translation);
   for (const entry of card.entries) {
     if (entry.terms.length > 0) {
