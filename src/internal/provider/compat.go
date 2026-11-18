@@ -77,7 +77,7 @@ func (service compatService) endpoint(settings map[string]any) (string, string, 
 // hand-edited value into a sentence the page can show. Plain HTTP is accepted
 // on purpose: a self-hosted gateway usually runs it on a high port, and the
 // host keeps the whole origin (scheme, host and port) as the one destination
-// the key may travel to (D-1187).
+// the key may travel to (D-1189).
 func (service compatService) origin(settings map[string]any) (string, error) {
 	raw := strings.TrimSpace(settingText(settings, service.URLKey))
 	if raw == "" {

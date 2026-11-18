@@ -59,7 +59,7 @@ func TestOpenAICompatUsesTheReadersAddressAndModel(t *testing.T) {
 	}
 }
 
-// D-1187: a self-hosted gateway is usually plain HTTP on a high port, and the
+// D-1189: a self-hosted gateway is usually plain HTTP on a high port, and the
 // origin the reader typed travels to the request unchanged — scheme, host case
 // and port included. Only the scheme's default port is dropped.
 func TestCompatKeepsTheReadersOrigin(t *testing.T) {
